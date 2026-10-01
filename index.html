@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neural Network Visualizer 3D</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Three.js ESM Import Map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="ui-container">
+        <header class="header-panel">
+            <div class="title-group">
+                <div class="logo-icon">🧠</div>
+                <div>
+                    <h1>Neural Network Simulation <span class="badge-3d">3D</span></h1>
+                    <p class="subtitle">Interactive Hebbian Learning &amp; Signal Propagation</p>
+                </div>
+            </div>
+            <div class="controls">
+                <button class="btn btn-primary" onclick="addNode()">
+                    <span class="icon">+</span> <span class="btn-label">Add Node</span>
+                </button>
+                <button class="btn btn-danger" onclick="removeNode()">
+                    <span class="icon">−</span> <span class="btn-label">Remove Node</span>
+                </button>
+                <button class="btn btn-toggle active" id="learningBtn" onclick="toggleLearning()">
+                    <span class="status-dot"></span> <span id="learningBtnText">Learning: ON</span>
+                </button>
+                <button class="btn btn-secondary" onclick="resetNetwork()">
+                    <span class="icon">↺</span> <span class="btn-label">Reset</span>
+                </button>
+                <button class="btn btn-secondary" onclick="resetView()">
+                    <span class="icon">🔍</span> <span id="zoomLevel">100%</span>
+                </button>
+
+                <!-- Step Mode -->
+                <button class="btn btn-step" id="stepModeBtn" onclick="toggleStepMode()">
+                    <span class="icon">⏸</span> <span id="stepModeBtnText">Step Mode</span>
+                </button>
+                <button class="btn btn-step-go" id="nextStepBtn" onclick="advanceStep()" style="display:none">
+                    <span class="icon">▶</span> Avançar
+                </button>
+
+                <select id="modelSelect" class="theme-select highlight-select" onchange="loadTopology(this.value)">
+                    <option value="dff">📐 Deep Feed Forward (DFF)</option>
+                    <option value="rnn">🔄 Recurrent NN (RNN)</option>
+                    <option value="lstm">💾 Memory Cell (LSTM)</option>
+                    <option value="ae">⌛ Auto Encoder (AE)</option>
+                    <option value="dcn">👁️ Convolutional (DCN)</option>
+                    <option value="gan">⚔️ Adversarial (GAN)</option>
+                    <option value="drn">⚡ Deep Residual (DRN)</option>
+                    <option value="hopfield">🕸️ Hopfield Network (HN)</option>
+                    <option value="ntm">🎰 Neural Turing Machine (NTM)</option>
+                </select>
+                <select id="themeSelect" class="theme-select" onchange="changeTheme(this.value)">
+                    <option value="cyberpunk">⚡ Cyberpunk</option>
+                    <option value="matrix">🟢 Matrix Code</option>
+                    <option value="bioneural">🧠 Bio-Neural</option>
+                    <option value="vaporwave">🌆 Vaporwave</option>
+                </select>
+                <div class="slider-group">
+                    <div class="slider-item">
+                        <label>Speed: <span id="speedVal">1.0x</span></label>
+                        <input type="range" id="speedRange" min="0.2" max="3.0" step="0.1" value="1.0" oninput="updateSpeed(this.value)">
+                    </div>
+                    <div class="slider-item">
+                        <label>Glow: <span id="glowVal">0.8x</span></label>
+                        <input type="range" id="glowRange" min="0.1" max="1.5" step="0.05" value="0.8" oninput="updateGlow(this.value)">
+                    </div>
+                    <div class="slider-item">
+                        <label>Bloom: <span id="bloomVal">0.35x</span></label>
+                        <input type="range" id="bloomRange" min="0.0" max="1.0" step="0.05" value="0.35" oninput="updateBloom(this.value)">
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="showWeights" checked>
+                    <span class="slider"></span>
+                    <span class="label-text">Weights</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="showLabels" checked>
+                    <span class="slider"></span>
+                    <span class="label-text">Labels</span>
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoRotate">
+                    <span class="slider"></span>
+                    <span class="label-text">Auto-Orbit</span>
+                </label>
+
+                <!-- Export / Import -->
+                <button class="btn btn-export" onclick="exportScreenshot()" title="Captura de tela PNG">📸</button>
+                <button class="btn btn-export" onclick="exportJSON()" title="Exportar estado JSON">💾</button>
+                <label class="btn btn-export" title="Importar estado JSON" style="cursor:pointer">
+                    📂<input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(event)">
+                </label>
+            </div>
+        </header>
+
+        <aside class="stats-panel">
+            <h3>Network Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Nodes</span>
+                    <span class="stat-value" id="nodeCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Connections</span>
+                    <span class="stat-value" id="connectionCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Active Signals</span>
+                    <span class="stat-value" id="signalCount">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">FPS</span>
+                    <span class="stat-value highlight" id="fpsCounter">0</span>
+                </div>
+            </div>
+
+            <!-- Backpropagation Training Panel -->
+            <div class="train-panel" id="trainPanel">
+                <h4 class="train-title">🎯 Treino — XOR</h4>
+                <div class="loss-bar-wrap">
+                    <span class="loss-label">Erro (Loss):</span>
+                    <div class="loss-bar-bg"><div class="loss-bar-fill" id="lossBar"></div></div>
+                    <span class="loss-value" id="lossValue">—</span>
+                </div>
+                <canvas class="loss-chart-canvas" id="lossChart" width="220" height="60"></canvas>
+                <div class="epoch-row">
+                    <span id="epochLabel">Época: 0</span>
+                    <button class="btn btn-train" id="trainBtn" onclick="toggleTraining()">▶ Treinar</button>
+                </div>
+                <div class="lr-row">
+                    <label>Taxa aprend.: <span id="lrVal">0.10</span></label>
+                    <input type="range" id="lrRange" min="0.01" max="0.5" step="0.01" value="0.10" oninput="updateLR(this.value)">
+                </div>
+            </div>
+
+            <div class="instructions">
+                <h4>Interações 3D</h4>
+                <ul>
+                    <li><span class="badge">Drag</span> Orbitar câmera</li>
+                    <li><span class="badge">Scroll</span> Zoom In / Out</li>
+                    <li><span class="badge">Right-Drag</span> Pan câmera</li>
+                    <li><span class="badge">Click Node</span> Ativar neurônio</li>
+                    <li><span class="badge">Dbl Click</span> Spawn Node</li>
+                    <li><span class="badge">⏸ Step</span> Passo a Passo</li>
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Step-by-Step Narration Panel -->
+    <div id="stepPanel" class="step-panel" style="display:none">
+        <div class="step-header">
+            <span class="step-icon">📖</span>
+            <strong id="stepTitle">Modo Passo a Passo</strong>
+            <button class="step-close" onclick="toggleStepMode()">✕</button>
+        </div>
+        <div id="stepNarration" class="step-narration">
+            Pressione <strong>▶ Avançar</strong> no cabeçalho para propagar um sinal pela rede.
+        </div>
+        <div id="stepCounter" class="step-counter">Passo 0</div>
+    </div>
+
+    <div id="nodeTooltip" class="node-tooltip">
+        <div class="tooltip-title" id="ttTitle">Node #1</div>
+        <div class="tooltip-row"><span>Role:</span> <strong id="ttRole" style="color:#a5b4fc">Input Cell</strong></div>
+        <div class="tooltip-row"><span>Activation:</span> <strong id="ttActivation">0.000</strong></div>
+        <div class="tooltip-row"><span>Bias:</span> <strong id="ttBias">+0.00</strong></div>
+        <div class="tooltip-row"><span>Connections:</span> <strong id="ttConnections">0 In / 0 Out</strong></div>
+    </div>
+
+    <canvas id="neuralCanvas"></canvas>
+
+    <script type="module" src="script.js?v=5"></script>
+</body>
+</html>
